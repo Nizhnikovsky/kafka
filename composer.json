@@ -1,0 +1,27 @@
+{
+    "name": "woxapp/scaffold",
+    "description": "Basic architecture scaffold, can be used to build various REST APIs",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Rostislav Shaganenko",
+            "email": "foobar76239@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.0",
+        "woxapp/phalcon-restful": "0.1",
+        "ext-phalcon": ">=3.2",
+        "ext-yaml": "*",
+        "ext-mbstring": "*",
+        "ext-mcrypt": "*",
+        "ext-json": "*",
+        "ext-gearman": "*",
+        "ext-redis": "*",
+        "ext-memcached": "*",
+        "firebase/php-jwt": "^5.0",
+        "phalcon/devtools": "^3.2",
+        "swiftmailer/swiftmailer": "^6.0",
+        "guzzlehttp/guzzle": "^6.3"
+    }
+}

@@ -8,7 +8,6 @@
 
 use Phalcon\Mvc\Router;
 use Phalcon\Mvc\RouterInterface;
-use Phalcon\Mvc\Router\Group as RouteGroup;
 
 $router = function (): RouterInterface {
     $router = new Router(false);
@@ -17,6 +16,7 @@ $router = function (): RouterInterface {
 
     $router->notFound(
         [
+            /* FIXME: Developers should change this according to the project. */
             'controller' => 'Woxapp\\Scaffold\\Presentation\\Controller\\Errors',
             'action' => 'notFound'
         ]

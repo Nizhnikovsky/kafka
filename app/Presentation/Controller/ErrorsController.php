@@ -10,8 +10,8 @@ namespace Woxapp\Scaffold\Presentation\Controller;
 
 use Phalcon\Mvc\Controller;
 use Phalcon\Http\ResponseInterface;
-use Woxapp\Scaffold\Exception\RESTException;
 use Woxapp\Scaffold\Utility\ErrorCodes;
+use Woxapp\Restful\Exception\RESTException;
 
 /**
  * Class ErrorsController

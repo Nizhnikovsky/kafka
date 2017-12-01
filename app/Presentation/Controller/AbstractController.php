@@ -10,8 +10,8 @@ namespace Woxapp\Scaffold\Presentation\Controller;
 
 use Phalcon\Dispatcher;
 use Phalcon\Mvc\Controller;
-use Woxapp\Scaffold\Presentation\Exception\PresentationException;
 use Woxapp\Scaffold\Utility\ErrorCodes;
+use Woxapp\Restful\Presentation\Exception\PresentationException;
 
 /**
  * Class AbstractController
@@ -20,8 +20,6 @@ use Woxapp\Scaffold\Utility\ErrorCodes;
  */
 abstract class AbstractController extends Controller
 {
-    const CORS_ALLOW_CREDENTIALS = true;
-
     /**
      * @var \Phalcon\Config
      */

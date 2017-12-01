@@ -6,23 +6,22 @@
  * Time: 5:15 PM
  */
 
-require(__DIR__ . "/Routes.php");
+require(__DIR__ . '/Routes.php');
+require(__DIR__ . '/../vendor/autoload.php');
 
 use Phalcon\Loader;
+use Phalcon\Events\Event;
 use Phalcon\Config;
 use Phalcon\Config\Adapter\Yaml;
 use Phalcon\Db\Adapter\Pdo\Mysql;
 use Phalcon\Di\FactoryDefault;
-use Phalcon\Events\Event;
+use Phalcon\Logger;
+use Phalcon\Logger\Adapter\File;
+use Phalcon\Events\Manager;
 use Phalcon\Mvc\View;
 use Phalcon\Mvc\Url;
 use Phalcon\Mvc\View\Engine\Volt;
-use Phalcon\Mvc\Model\MetaDataInterface;
-use Phalcon\Mvc\Model\Metadata\Memory;
-use Phalcon\Logger;
-use Phalcon\Logger\Adapter\File;
 use Phalcon\Mvc\Dispatcher;
-use Phalcon\Events\Manager;
 
 const CACHE_CONFIG = false;
 
@@ -31,8 +30,8 @@ $basePath = __DIR__;
 
 $loader->registerNamespaces(
     [
-        'Woxapp\Scaffold' => "{$basePath}/",
-        'Firebase\JWT' => "{$basePath}/../vendor/firebase/php-jwt/src"
+        /* FIXME: Developers should change this according to the project. */
+        'Woxapp\Scaffold' => "{$basePath}/"
     ]
 )->register();
 
@@ -44,48 +43,16 @@ $di->set('config', function (): Config {
     $cachePath = __DIR__ . "/../cache/config.cache.php";
 
     switch (true) {
-        case (CACHE_CONFIG == false):
-            return new Yaml(__DIR__ . '/Configuration/config.yaml');
         case (CACHE_CONFIG == true && file_exists($cachePath)):
             $cached = include $cachePath;
             return (new Config())->merge($cached);
         case (CACHE_CONFIG == true && !file_exists($cachePath)):
-            $config = new Yaml(__DIR__ . '/Configuration/config.yaml');
+            $config = new Yaml(__DIR__ . '/Configuration/config.yml');
             file_put_contents($cachePath, "<?php return " . var_export($config, true) . ";");
             return $config;
+        default:
+            return new Yaml(__DIR__ . '/Configuration/config.yml');
     }
-});
-
-$di->set('redis', function (): \Redis {
-    $config = $this->getConfig();
-
-    $redis = new Redis();
-    $redis->connect($config->path('external.redis.host'), $config->path('external.redis.port'));
-    $redis->auth('');
-
-    return $redis;
-});
-
-$di->set('memcached', function (): \Memcached {
-    $config = $this->getConfig();
-
-    $memcached = new \Memcached();
-    $memcached->addServer($config->path('external.memcached.host'), $config->path('external.memcached.port'));
-
-    return $memcached;
-});
-
-$di->set('gearman', function (): \GearmanClient {
-    $config = $this->getConfig();
-
-    $gearman = new \GearmanClient();
-
-    $gearman->addServer($config->path('external.gearman.host'), $config->path('external.gearman.port'));
-    if ($gearman->ping('1') === false) {
-        throw new \RuntimeException('Cannot connect to the queue server.');
-    }
-
-    return $gearman;
 });
 
 $di->set('url', function (): Url {
@@ -136,6 +103,13 @@ $di->set('queryLogManager', function (): Manager {
     return $eventsManager;
 });
 
+$di->setShared('modelsManager', function () {
+    $manager = new \Phalcon\Mvc\Model\Manager();
+    /* FIXME: Developers should change this according to the project. */
+    $manager->registerNamespaceAlias('e', '\Woxapp\Scaffold\Data\Entity');
+    return $manager;
+});
+
 $di->setShared('db', function (): Mysql {
     $config = $this->getConfig();
     $logQuery = $config->path('database.master.log-query');
@@ -157,32 +131,27 @@ $di->setShared('db', function (): Mysql {
     return $connection;
 });
 
-$di->setShared('modelsMetadata', function (): MetaDataInterface {
-    return new Memory();
+$di->setShared("dispatcher", function (): Dispatcher {
+    $eventsManager = new Manager();
+
+    $eventsManager->attach(
+        "dispatch:beforeException",
+        function (Event $event, Dispatcher $dispatcher, \Throwable $throwable) {
+            $dispatcher->forward(
+                [
+                    /* FIXME: Developers should change this according to the project. */
+                    'namespace' => 'Woxapp\\Scaffold\\Presentation\\Controller',
+                    'controller' => "Errors",
+                    'action' => "error",
+                    'params' => ['throwable' => $throwable]
+                ]
+            );
+
+            return false;
+        }
+    );
+    $dispatcher = new Dispatcher();
+    $dispatcher->setEventsManager($eventsManager);
+
+    return $dispatcher;
 });
-
-$di->setShared(
-    "dispatcher", function (): Dispatcher {
-        $eventsManager = new Manager();
-
-        $eventsManager->attach(
-            "dispatch:beforeException",
-            function (Event $event, Dispatcher $dispatcher, \Throwable $throwable) {
-                $dispatcher->forward(
-                    [
-                        'namespace' => 'Woxapp\\Scaffold\\Presentation\\Controller',
-                        'controller' => "Errors",
-                        'action' => "error",
-                        'params' => ['throwable' => $throwable]
-                    ]
-                );
-
-                return false;
-            }
-        );
-        $dispatcher = new Dispatcher();
-        $dispatcher->setEventsManager($eventsManager);
-
-        return $dispatcher;
-    }
-);

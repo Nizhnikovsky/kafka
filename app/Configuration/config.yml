@@ -1,0 +1,44 @@
+database:
+    host: 127.0.0.1
+    username: root
+    password: qwerty
+    log-query: false
+    dbname: dababase
+
+orm:
+    cast-on-hydrate: true
+    metadata-cache: memory
+
+application:
+    debugger: true
+    mailer: true
+    log:
+        requests: false
+        errors: false
+        internal: false
+        files:
+            requests: /app/logs/requests.log
+            errors: /app/logs/errors.log
+            internal: /app/logs/internal.log
+            query: /app/logs/query.log
+
+    links:
+        origin: "*"
+        project: https://woxapp.com/
+        api: https://woxapp.com/
+
+external:
+    redis:
+        host: 127.0.0.1
+        port: 6379
+    memcached:
+        host: 127.0.0.1
+        port: 11211
+    gearman:
+        host: 127.0.0.1
+        port: 4730
+    smtp:
+        host: smtp.gmail.com
+        port: 465
+        username: test@woxapp.com
+        password: Woxapp12345

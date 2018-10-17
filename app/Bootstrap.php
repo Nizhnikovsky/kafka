@@ -6,7 +6,6 @@
  * Time: 5:15 PM
  */
 
-require(__DIR__ . '/Routes.php');
 require(__DIR__ . '/../vendor/autoload.php');
 
 use Phalcon\Loader;
@@ -16,12 +15,16 @@ use Phalcon\Config\Adapter\Yaml;
 use Phalcon\Db\Adapter\Pdo\Mysql;
 use Phalcon\Di\FactoryDefault;
 use Phalcon\Logger;
-use Phalcon\Logger\Adapter\File;
-use Phalcon\Events\Manager;
-use Phalcon\Mvc\View;
+use Phalcon\Logger\Adapter\File as FileAdapter;
+use Phalcon\Events\Manager as EventsManager;
 use Phalcon\Mvc\Url;
-use Phalcon\Mvc\View\Engine\Volt;
-use Phalcon\Mvc\Dispatcher;
+use Phalcon\Mvc\Model\Manager as ModelsManager;
+
+use Woxapp\Restful\Presentation\Interfaces\ValidationServiceInterface;
+use Woxapp\Restful\Presentation\Service\ValidationService;
+use Woxapp\Scaffold\Data\Repository;
+use Woxapp\Scaffold\Dispatcher;
+use Woxapp\Scaffold\Presentation\EventListener\CorsListener;
 
 const CACHE_CONFIG = false;
 
@@ -37,7 +40,10 @@ $loader->registerNamespaces(
 
 $di = new FactoryDefault();
 
-$di->setShared('router', $router);
+//Register logger for LoggerService
+$di->set('logger', function (): FileAdapter {
+    return new FileAdapter(__DIR__ . '/../logs/logs.log');
+});
 
 $di->set('config', function (): Config {
     $cachePath = __DIR__ . "/../cache/config.cache.php";
@@ -55,6 +61,16 @@ $di->set('config', function (): Config {
     }
 });
 
+//Register repositories storage
+$di->set('repository', function (): Repository {
+    return new Repository($this);
+});
+
+//Register validation service of presentation layer
+$di->set('validation', function (): ValidationServiceInterface {
+    return new ValidationService();
+});
+
 $di->set('url', function (): Url {
     $config = $this->getConfig();
 
@@ -64,31 +80,10 @@ $di->set('url', function (): Url {
     return $url;
 });
 
-$di->set('view', function (): View {
-    $view = new View();
-    $view->setDI($this);
-    $view->setViewsDir(__DIR__ . '/../view');
-
-    $view->registerEngines([
-        '.volt' => function ($view) {
-            $volt = new Volt($view, $this);
-
-            $volt->setOptions([
-                'compiledPath' => __DIR__ . '/../cache/templates',
-                'compiledSeparator' => '_'
-            ]);
-
-            return $volt;
-        }
-    ]);
-
-    return $view;
-});
-
-$di->set('queryLogManager', function (): Manager {
+$di->set('queryLogManager', function (): EventsManager {
     $config = $this->getConfig();
-    $eventsManager = new Manager();
-    $logger = new File($config->path('application.log.files.query'));
+    $eventsManager = new EventsManager();
+    $logger = new FileAdapter($config->path('application.log.files.query'));
 
     $eventsManager->attach(
         'db:beforeQuery',
@@ -103,8 +98,8 @@ $di->set('queryLogManager', function (): Manager {
     return $eventsManager;
 });
 
-$di->setShared('modelsManager', function () {
-    $manager = new \Phalcon\Mvc\Model\Manager();
+$di->setShared('modelsManager', function (): ModelsManager {
+    $manager = new ModelsManager();
     /* FIXME: Developers should change this according to the project. */
     $manager->registerNamespaceAlias('e', '\Woxapp\Scaffold\Data\Entity');
     return $manager;
@@ -115,11 +110,11 @@ $di->setShared('db', function (): Mysql {
     $logQuery = $config->path('database.master.log-query');
 
     $params = [
-        'host'     => $config->path('database.master.host'),
+        'host' => $config->path('database.master.host'),
         'username' => $config->path('database.master.username'),
         'password' => $config->path('database.master.password'),
-        'dbname'   => $config->path('database.dbname'),
-        'charset'  => 'utf8'
+        'dbname' => $config->path('database.dbname'),
+        'charset' => 'utf8'
     ];
 
     $connection = new Mysql($params);
@@ -131,25 +126,14 @@ $di->setShared('db', function (): Mysql {
     return $connection;
 });
 
-$di->setShared("dispatcher", function (): Dispatcher {
-    $eventsManager = new Manager();
+$di->setShared('corsListener', function() {
+    return new CorsListener();
+});
 
-    $eventsManager->attach(
-        "dispatch:beforeException",
-        function (Event $event, Dispatcher $dispatcher, \Throwable $throwable) {
-            $dispatcher->forward(
-                [
-                    /* FIXME: Developers should change this according to the project. */
-                    'namespace' => 'Woxapp\\Scaffold\\Presentation\\Controller',
-                    'controller' => "Errors",
-                    'action' => "error",
-                    'params' => ['throwable' => $throwable]
-                ]
-            );
+$di->setShared("dispatcher", function () use ($di): Dispatcher {
+    $eventsManager = new EventsManager();
+    $eventsManager->attach("dispatch:beforeExecuteRoute", $di->get('corsListener'));
 
-            return false;
-        }
-    );
     $dispatcher = new Dispatcher();
     $dispatcher->setEventsManager($eventsManager);
 

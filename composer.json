@@ -9,9 +9,9 @@
         }
     ],
     "require": {
-        "php": ">=7.0",
-        "woxapp/phalcon-restful": "0.1",
+        "php": ">=7.1",
         "ext-phalcon": ">=3.2",
+        "WoxappGIT/libs_phalcon_restful": "*",
         "ext-yaml": "*",
         "ext-mbstring": "*",
         "ext-mcrypt": "*",
@@ -19,9 +19,30 @@
         "ext-gearman": "*",
         "ext-redis": "*",
         "ext-memcached": "*",
+        "phpunit/phpunit": "^7",
         "firebase/php-jwt": "^5.0",
         "phalcon/devtools": "^3.2",
         "swiftmailer/swiftmailer": "^6.0",
-        "guzzlehttp/guzzle": "^6.3"
+        "guzzlehttp/guzzle": "^6.3",
+        "symfony/validator": "^4.0"
+    },
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "WoxappGIT/libs_phalcon_restful",
+                "version": "1.0",
+                "source": {
+                    "url": "https://dobrik@bitbucket.org/WoxappGIT/libs_phalcon_restful.git",
+                    "type": "git",
+                    "reference": "release-1.0"
+                }
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Woxapp\\Restful\\": "vendor/WoxappGIT/libs_phalcon_restful/src/"
+        }
     }
 }

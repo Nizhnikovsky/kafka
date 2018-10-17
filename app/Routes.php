@@ -1,26 +1,24 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: fq
- * Date: 30/10/2017
- * Time: 10:16 AM
- */
 
-use Phalcon\Mvc\Router;
+use Woxapp\Scaffold\Presentation\Router\Router;
+use Woxapp\Scaffold\Presentation\Router\Group as RouteGroup;
 use Phalcon\Mvc\RouterInterface;
 
 $router = function (): RouterInterface {
     $router = new Router(false);
 
-    // Define your routes here. Usage of Phalcon's Router\Group is advised for better maintainability.
+    $routes = new RouteGroup();
+    $routes->setPrefix('/api/v1/');
 
-    $router->notFound(
-        [
-            /* FIXME: Developers should change this according to the project. */
-            'controller' => 'Woxapp\\Scaffold\\Presentation\\Controller\\Errors',
-            'action' => 'notFound'
-        ]
+    // Define your routes here. Usage of Phalcon's Router\Group is advised for better maintainability.
+    $routes->addRoute(
+        'example',
+        \Woxapp\Scaffold\Domain\Usecase\ExampleUseCase::class,
+        ['GET', 'OPTIONS'],
+        \Woxapp\Scaffold\Presentation\Service\Validation\Rules\ExampleRules::createChatRules()
     );
 
-    return $router;
+    return $router->mount($routes);
 };
+
+$di->setShared('router', $router);

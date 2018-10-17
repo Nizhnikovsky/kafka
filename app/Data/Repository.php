@@ -8,17 +8,15 @@
 
 namespace Woxapp\Scaffold\Data;
 
-use Phalcon\Config;
-use Phalcon\Db\Adapter\Pdo;
 use Phalcon\Di;
-use Phalcon\Cache\Backend\Libmemcached;
-use Phalcon\Cache\Frontend\None;
-use Phalcon\Mvc\Model\MetaData\Memory;
-use Phalcon\Mvc\Model\MetaData\Libmemcached as ModelMetaData;
+use Phalcon\Di\InjectionAwareInterface;
+use Memcached;
+use Phalcon\DiInterface;
 use Phalcon\Mvc\Model\MetaData\Strategy\Introspection;
-use Phalcon\Mvc\Model\Manager;
+use Woxapp\Scaffold\Data\Interfaces\RepositoryInterface;
+use Woxapp\Scaffold\Data\Service\CacheService;
 
-class Repository
+class Repository implements InjectionAwareInterface, RepositoryInterface
 {
     /* FIXME: Developer should change this according to the project name. */
     const CACHE_PREFIX = 'scaffold';
@@ -27,6 +25,11 @@ class Repository
      * @var \Phalcon\Di
      */
     protected $container;
+
+    /**
+     * @var \Phalcon\Di
+     */
+    protected $mainContainer;
 
     /**
      * @var \Phalcon\Config
@@ -43,15 +46,16 @@ class Repository
      */
     protected $manager;
 
-    public function __construct(Pdo $db, Config $config, Manager $manager)
+    public function __construct(DiInterface $di)
     {
         $this->container = new Di();
-        $this->config = $config;
-        $this->db = $db;
-        $this->manager = $manager;
+
+        $this->mainContainer = $di;
+        $this->config = $di->getConfig();
+        $this->db = $di->get('db');
+        $this->manager = $di->get('modelsManager');
 
         $this->initializeContainer();
-        $this->initializeRepositories();
     }
 
     /**
@@ -60,31 +64,7 @@ class Repository
     protected function initializeContainer()
     {
         $config = $this->config;
-
-        $this->container->set('memcached', function () use ($config): Libmemcached {
-            return new Libmemcached(
-                $this->get('frontend'),
-                [
-                    'server' => [
-                        [
-                            "host" => $config->path('external.memcached.host'),
-                            "port" => $config->path('external.memcached.port')
-                        ]
-                    ],
-                    'client' => [
-                        \Memcached::OPT_HASH => \Memcached::HASH_MD5,
-                        \Memcached::OPT_PREFIX_KEY => self::CACHE_PREFIX . "-api.",
-                    ],
-                    'lifetime' => 86400,
-                    'statsKey' => '_PHCM',
-                    'prefix' => self::CACHE_PREFIX . '-api'
-                ]
-            );
-        });
-
-        $this->container->set('frontend', function () {
-            return new None();
-        });
+        $this->registerMemcached($config);
 
         $this->container->set('redis', function () use ($config) {
             $redis = new \Redis();
@@ -93,29 +73,7 @@ class Repository
             return $redis;
         });
 
-        $this->container->set('metadataMemcached', function () use ($config) {
-            return new ModelMetaData(
-                [
-                    'server' => [
-                        [
-                            "host" => $config->path('external.memcached.host'),
-                            "port" => $config->path('external.memcached.port')
-                        ]
-                    ],
-                    'client' => [
-                        \Memcached::OPT_HASH => \Memcached::HASH_MD5,
-                        \Memcached::OPT_PREFIX_KEY => self::CACHE_PREFIX . "-metadata.",
-                    ],
-                    'lifetime' => 86400,
-                    'prefix' => self::CACHE_PREFIX . '-metadata'
-                ]
-            );
-        });
-
-        $this->container->set('metadataMemory', function () use ($config) {
-            return new Memory();
-        });
-
+        //TODO: check what is it
         $this->container->setShared('modelsMetadata', function () use ($config) {
             $metadataName = ucfirst($config->path('orm.metadata-cache'));
 
@@ -139,25 +97,69 @@ class Repository
     }
 
     /**
-     * Contains concrete repositories and their dependencies.
+     * @param string $entityClass
+     * @return RepositoryInterface
      */
-    protected function initializeRepositories()
+    public function getRepository(string $entityClass): RepositoryInterface
     {
-        /*FIXME: Use this method to initialize custom Repositories in your project. */
+        if ($this->container->has($entityClass)) {
+            return $this->container->get($entityClass);
+        }
+
+        if (!class_exists($entityClass)) {
+            throw new \UnexpectedValueException('Class '.$entityClass.' does not exists.');
+        }
+
+        if (!defined("$entityClass::REPOSITORY")) {
+            throw new \UnexpectedValueException('Class '.$entityClass.' does not contains constant REPOSITORY.');
+        }
+
+        $repositoryClass = $entityClass::REPOSITORY;
+        if (!class_exists($repositoryClass)) {
+            throw new \UnexpectedValueException('Class '.$repositoryClass.' does not exists.');
+        }
+
+        if (!in_array(RepositoryInterface::class, class_implements($repositoryClass), true)) {
+            throw new \UnexpectedValueException('Class '.$repositoryClass.' must implements RepositoryInterface.');
+        }
+
+        $repository = new $repositoryClass($this->container);
+
+        $this->container->set($entityClass, $repository);
+
+        return $repository;
+    }
+
+    protected function registerMemcached($config)
+    {
+        $this->container->set('memcached', function () use ($config): Memcached {
+            $memcached =  new Memcached();
+            $memcached->addServer($config->path('external.memcached.host'), $config->path('external.memcached.port'));
+            return $memcached;
+        });
+
+        $this->container->set('cacheService', function (): CacheService {
+            return new CacheService($this->get('memcached'));
+        });
     }
 
     /**
-     * @param string $repository
-     * @return mixed
+     * Sets the dependency injector
+     *
+     * @param \Phalcon\DiInterface $dependencyInjector
      */
-    public function getRepository(string $repository)
+    public function setDI(DiInterface $dependencyInjector)
     {
-        if (!$this->container->has($repository)) {
-            throw new \InvalidArgumentException(
-                "Repository with name \"{$repository}\" was not found in dependency injection container."
-            );
-        }
+        $this->mainContainer = $dependencyInjector;
+    }
 
-        return $this->container->get($repository);
+    /**
+     * Returns the internal dependency injector
+     *
+     * @return \Phalcon\DiInterface
+     */
+    public function getDI()
+    {
+        return $this->mainContainer;
     }
 }

@@ -1,10 +1,16 @@
 database:
-    host: 127.0.0.1
-    username: root
-    password: qwerty
-    log-query: false
-    dbname: dababase
-
+    master:
+        host: localhost
+        username: root
+        password:
+        log-query: false
+        dbname: dababase
+    slave:
+        host: localhost
+        username: root
+        password:
+        log-query: false
+        dbname: dababase
 orm:
     cast-on-hydrate: true
     metadata-cache: memory

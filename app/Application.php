@@ -1,25 +1,24 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: fq
- * Date: 30/10/2017
- * Time: 2:29 PM
- */
 
 namespace Woxapp\Scaffold;
 
-use Phalcon\Di;
+use Phalcon\DiInterface;
 use Phalcon\Http\ResponseInterface;
+use Woxapp\Restful\Exception\RESTException;
+use Woxapp\Scaffold\Domain\Interfaces\InteractorInterface;
+use Woxapp\Scaffold\Presentation\Router\Router;
+use Woxapp\Scaffold\Presentation\Service\RequestHandler;
+use Woxapp\Scaffold\Utility\ErrorCodes;
 
 class Application
 {
     /**
-     * @var \Phalcon\Di
+     * @var DiInterface
      */
     private $di;
 
     /**
-     * @var \Phalcon\Mvc\Router
+     * @var Router
      */
     private $router;
 
@@ -28,12 +27,10 @@ class Application
      */
     private $dispatcher;
 
-    public function __construct(Di $container)
+    public function __construct(DiInterface $container)
     {
         $this->di = $container;
-
         $this->router = $this->di->get('router');
-
         $this->dispatcher = $this->di->get('dispatcher');
 
         set_error_handler([$this, 'errorHandler']);
@@ -43,31 +40,9 @@ class Application
     {
         $this->router->handle();
 
-        $this->dispatcher->setNamespaceName(
-            $this->router->getNamespaceName()
-        );
-
-        $this->dispatcher->setControllerName(
-            $this->router->getControllerName()
-        );
-
-        $this->dispatcher->setActionName(
-            $this->router->getActionName()
-        );
-
-        $this->dispatcher->setParams(
-            $this->router->getParams()
-        );
-
-        $this->dispatcher->dispatch();
-
-        $response = $this->dispatcher->getReturnedValue();
-
+        $response = $this->execute();
         if (!$response instanceof ResponseInterface) {
-            throw new \RuntimeException(
-                "Controller '{$this->router->getControllerName()}' at namespace '{$this->router->getNamespaceName()}' "
-                ."must return a ResponseInterface instance."
-            );
+            throw new \RuntimeException("UseCase '{$this->router->getUseCaseClass()}' must return a ResponseInterface instance.");
         }
 
         return $response;
@@ -80,5 +55,86 @@ class Application
         }
 
         throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+    }
+
+    private function exceptionHandler(\Throwable $throwable)
+    {
+        $code = ($throwable instanceof RESTException)
+            ? $throwable->getStatusCode()
+            : ErrorCodes::INTERNAL_SERVER_ERROR['status'];
+        $content = $this->formErrorResponse($throwable);
+
+        return $this->setResponse($content, $code);
+    }
+
+    private function formErrorResponse(\Throwable $throwable)
+    {
+        if ($throwable instanceof RESTException) {
+            $apiCode = $throwable->getApiCode();
+            $message = $throwable->getMessage();
+        } else {
+            $apiCode = ErrorCodes::INTERNAL_SERVER_ERROR['code'];
+            $message = ErrorCodes::INTERNAL_SERVER_ERROR['message'];
+        }
+
+        $error['error'] = [
+            'code' => $apiCode,
+            'message' => $message
+        ];
+
+        if ($this->di->get('config')->path('application.debugger') === true) {
+            $error['error']['debugger'] = [
+                'class' => get_class($throwable),
+                'code' => $throwable->getCode(),
+                'message' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
+                'trace' => explode(PHP_EOL, $throwable->getTraceAsString())
+            ];
+        }
+
+        return $error;
+    }
+
+    private function routeNotFoundHandler()
+    {
+        $content = [
+            'code' => ErrorCodes::NOT_FOUND['code'],
+            'message' => ErrorCodes::NOT_FOUND['message']
+        ];
+
+        return $this->setResponse($content, ErrorCodes::NOT_FOUND['status']);
+    }
+
+    private function execute()
+    {
+        if (!$this->router->wasMatched()) {
+            return $this->routeNotFoundHandler();
+        }
+
+        try {
+            $requestHandler = new RequestHandler($this->di->get('request'));
+            $requestHandler->validateRequest($this->router->getValidationRules());
+
+            $useCaseClass = $this->router->getUseCaseClass();
+            if (!\in_array(InteractorInterface::class, \class_implements($useCaseClass), true)) {
+                throw new \InvalidArgumentException("The '$useCaseClass' must implement InteractorInterface");
+            }
+
+            /** @var InteractorInterface $useCase */
+            $useCase = new $useCaseClass();
+            $useCase->process($requestHandler->getHeaders(), $requestHandler->getBody(), $this->dispatcher->getParams());
+
+            return $this->setResponse($useCase->output(), 200);
+        } catch (\Throwable $throwable) {
+            return $this->exceptionHandler($throwable);
+        }
+    }
+
+    private function setResponse($content, int $code)
+    {
+        return $this->di->get('response')
+            ->setJsonContent($content)
+            ->setStatusCode($code);
     }
 }

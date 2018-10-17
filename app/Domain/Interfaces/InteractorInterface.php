@@ -2,7 +2,9 @@
 
 namespace Woxapp\Scaffold\Domain\Interfaces;
 
-interface InteractorInterface
+use Phalcon\Di\InjectionAwareInterface;
+
+interface InteractorInterface extends InjectionAwareInterface
 {
     /**
      * @param array $headers

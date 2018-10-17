@@ -123,7 +123,9 @@ class Application
 
             /** @var InteractorInterface $useCase */
             $useCase = new $useCaseClass();
-            $useCase->process($requestHandler->getHeaders(), $requestHandler->getBody(), $this->dispatcher->getParams());
+            $useCase->setDI($this->di);
+            $args = [$requestHandler->getHeaders(), $requestHandler->getBody(), $this->dispatcher->getParams()];
+            $useCase->process(...$args);
 
             return $this->setResponse($useCase->output(), 200);
         } catch (\Throwable $throwable) {

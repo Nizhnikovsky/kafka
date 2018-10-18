@@ -2,6 +2,7 @@
 
 namespace Woxapp\Scaffold\Domain\Usecase;
 
+use Phalcon\DiInterface;
 use Woxapp\Scaffold\Domain\Interfaces\InteractorInterface;
 
 abstract class Interactor implements InteractorInterface
@@ -10,6 +11,9 @@ abstract class Interactor implements InteractorInterface
      * @var mixed
      */
     protected $response;
+
+    /** @var DiInterface */
+    protected $di;
 
     public function output()
     {
@@ -20,6 +24,17 @@ abstract class Interactor implements InteractorInterface
 
         return $this->response;
     }
+
+    public function setDI(\Phalcon\DiInterface $dependencyInjector)
+    {
+        $this->di = $dependencyInjector;
+    }
+
+    public function getDI()
+    {
+        return $this->di;
+    }
+
 
     protected function respondSuccess(): bool
     {

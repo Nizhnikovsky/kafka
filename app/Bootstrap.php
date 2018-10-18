@@ -8,22 +8,23 @@
 
 require(__DIR__ . '/../vendor/autoload.php');
 
-use Phalcon\Loader;
-use Phalcon\Events\Event;
 use Phalcon\Config;
 use Phalcon\Config\Adapter\Yaml;
 use Phalcon\Db\Adapter\Pdo\Mysql;
 use Phalcon\Di\FactoryDefault;
+use Phalcon\Events\Event;
+use Phalcon\Events\Manager as EventsManager;
+use Phalcon\Loader;
 use Phalcon\Logger;
 use Phalcon\Logger\Adapter\File as FileAdapter;
-use Phalcon\Events\Manager as EventsManager;
-use Phalcon\Mvc\Url;
 use Phalcon\Mvc\Model\Manager as ModelsManager;
-
+use Phalcon\Mvc\Url;
 use Woxapp\Restful\Presentation\Interfaces\ValidationServiceInterface;
 use Woxapp\Restful\Presentation\Service\ValidationService;
 use Woxapp\Scaffold\Data\Repository;
 use Woxapp\Scaffold\Dispatcher;
+use Woxapp\Scaffold\Domain\Services\KafkaConsumerService;
+use Woxapp\Scaffold\Domain\Services\KafkaProducerService;
 use Woxapp\Scaffold\Presentation\EventListener\CorsListener;
 
 const CACHE_CONFIG = false;
@@ -59,6 +60,18 @@ $di->set('config', function (): Config {
         default:
             return new Yaml(__DIR__ . '/Configuration/config.yml');
     }
+});
+
+$di->set('mailer', function (): \Woxapp\Scaffold\Domain\Services\SwiftMailerService {
+    return new \Woxapp\Scaffold\Domain\Services\SwiftMailerService($this);
+});
+
+$di->setShared('kafkaProducer', function (): KafkaProducerService {
+    return new KafkaProducerService($this->getConfig());
+});
+
+$di->setShared('kafkaConsumer', function (): KafkaConsumerService {
+    return new KafkaConsumerService($this->getConfig());
 });
 
 //Register repositories storage
@@ -126,7 +139,7 @@ $di->setShared('db', function (): Mysql {
     return $connection;
 });
 
-$di->setShared('corsListener', function() {
+$di->setShared('corsListener', function () {
     return new CorsListener();
 });
 

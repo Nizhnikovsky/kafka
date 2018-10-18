@@ -20,13 +20,7 @@ class ExampleRules
             'required_headers' => ['Authorization'],
             'required_params' => [],
             'rules' => [
-                'Authorization' => new Length(['min' => 1, 'max' => 255]),
-                'message' => new Length(['min' => 1, 'max' => 255]),
-                'amount' => [
-                    new Type(['type' => 'numeric']),
-                    new Length(['min' => 1, 'max' => 11]),
-                ],
-                'is_appeal' => new Choice(['choices' => [0, 1]]),
+
             ],
         ];
     }
